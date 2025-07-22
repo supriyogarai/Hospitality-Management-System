@@ -1,0 +1,42 @@
+-- Room Availability View
+CREATE VIEW VW_RoomAvailability AS
+SELECT 
+    h.HotelName,
+    r.RoomNumber,
+    rt.TypeName,
+    rt.BasePrice,
+    r.Status,
+    CASE 
+        WHEN EXISTS (
+            SELECT 1 FROM Reservations res 
+            WHERE res.RoomID = r.RoomID 
+            AND res.Status IN ('Confirmed', 'CheckedIn')
+            AND res.CheckInDate <= GETDATE() 
+            AND res.CheckOutDate > GETDATE()
+        ) THEN 'Reserved'
+        ELSE 'Available'
+    END AS CurrentStatus
+FROM Rooms r
+INNER JOIN Hotels h ON r.HotelID = h.HotelID
+INNER JOIN RoomTypes rt ON r.RoomTypeID = rt.RoomTypeID
+WHERE h.IsActive = 1;
+
+-- Reservation Summary View
+CREATE VIEW VW_ReservationSummary AS
+SELECT 
+    r.ReservationID,
+    u.FirstName + ' ' + u.LastName AS CustomerName,
+    h.HotelName,
+    rm.RoomNumber,
+    rt.TypeName AS RoomType,
+    r.CheckInDate,
+    r.CheckOutDate,
+    r.NumberOfGuests,
+    r.TotalAmount,
+    r.Status,
+    DATEDIFF(DAY, r.CheckInDate, r.CheckOutDate) AS StayDuration
+FROM Reservations r
+INNER JOIN Users u ON r.UserID = u.UserID
+INNER JOIN Hotels h ON r.HotelID = h.HotelID
+INNER JOIN Rooms rm ON r.RoomID = rm.RoomID
+INNER JOIN RoomTypes rt ON rm.RoomTypeID = rt.RoomTypeID;
