@@ -1,0 +1,88 @@
+-- Check-in Process
+CREATE PROCEDURE SP_CheckIn
+    @ReservationID INT,
+    @CheckInBy INT,
+    @Notes NVARCHAR(500) = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+    BEGIN TRANSACTION;
+    
+    TRY
+        -- Validate reservation
+        IF NOT EXISTS (SELECT 1 FROM Reservations WHERE ReservationID = @ReservationID AND Status = 'Confirmed')
+        BEGIN
+            RAISERROR('Reservation not found or not confirmed', 16, 1);
+            ROLLBACK TRANSACTION;
+            RETURN;
+        END
+        
+        -- Update reservation status
+        UPDATE Reservations 
+        SET Status = 'CheckedIn' 
+        WHERE ReservationID = @ReservationID;
+        
+        -- Record check-in
+        INSERT INTO CheckInOut (ReservationID, ActualCheckInDate, CheckInBy, Notes)
+        VALUES (@ReservationID, GETDATE(), @CheckInBy, @Notes);
+        
+        -- Update room status
+        UPDATE Rooms 
+        SET Status = 'Occupied' 
+        WHERE RoomID = (SELECT RoomID FROM Reservations WHERE ReservationID = @ReservationID);
+        
+        SELECT 'Check-in completed successfully' AS Message;
+        
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
+END;
+GO
+
+-- Check-out Process
+CREATE PROCEDURE SP_CheckOut
+    @ReservationID INT,
+    @CheckOutBy INT,
+    @Notes NVARCHAR(500) = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+    BEGIN TRANSACTION;
+    
+    TRY
+        -- Validate reservation
+        IF NOT EXISTS (SELECT 1 FROM Reservations WHERE ReservationID = @ReservationID AND Status = 'CheckedIn')
+        BEGIN
+            RAISERROR('Reservation not found or not checked in', 16, 1);
+            ROLLBACK TRANSACTION;
+            RETURN;
+        END
+        
+        -- Update reservation status
+        UPDATE Reservations 
+        SET Status = 'CheckedOut' 
+        WHERE ReservationID = @ReservationID;
+        
+        -- Record check-out
+        UPDATE CheckInOut 
+        SET ActualCheckOutDate = GETDATE(), CheckOutBy = @CheckOutBy, Notes = COALESCE(@Notes, Notes)
+        WHERE ReservationID = @ReservationID;
+        
+        -- Update room status
+        UPDATE Rooms 
+        SET Status = 'Available' 
+        WHERE RoomID = (SELECT RoomID FROM Reservations WHERE ReservationID = @ReservationID);
+        
+        SELECT 'Check-out completed successfully' AS Message;
+        
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
+END;
+GO
