@@ -1,0 +1,112 @@
+-- Create the database
+CREATE DATABASE HospitalityManagement;
+GO
+
+USE HospitalityManagement;
+GO
+
+-- Users table for login functionality
+CREATE TABLE Users (
+    UserID INT IDENTITY(1,1) PRIMARY KEY,
+    Username NVARCHAR(50) UNIQUE NOT NULL,
+    Password NVARCHAR(255) NOT NULL,
+    Email NVARCHAR(100) UNIQUE NOT NULL,
+    FirstName NVARCHAR(50) NOT NULL,
+    LastName NVARCHAR(50) NOT NULL,
+    Phone NVARCHAR(20),
+    Role NVARCHAR(20) DEFAULT 'Customer' CHECK (Role IN ('Customer', 'Staff', 'Manager', 'Admin')),
+    CreatedDate DATETIME DEFAULT GETDATE(),
+    IsActive BIT DEFAULT 1
+);
+
+-- Hotels table
+CREATE TABLE Hotels (
+    HotelID INT IDENTITY(1,1) PRIMARY KEY,
+    HotelName NVARCHAR(100) NOT NULL,
+    Address NVARCHAR(200) NOT NULL,
+    City NVARCHAR(50) NOT NULL,
+    State NVARCHAR(50) NOT NULL,
+    Country NVARCHAR(50) NOT NULL,
+    ZipCode NVARCHAR(10),
+    Phone NVARCHAR(20),
+    Email NVARCHAR(100),
+    Rating DECIMAL(2,1) CHECK (Rating >= 1 AND Rating <= 5),
+    CreatedDate DATETIME DEFAULT GETDATE(),
+    IsActive BIT DEFAULT 1
+);
+
+-- Room Types table
+CREATE TABLE RoomTypes (
+    RoomTypeID INT IDENTITY(1,1) PRIMARY KEY,
+    TypeName NVARCHAR(50) NOT NULL,
+    Description NVARCHAR(200),
+    BasePrice DECIMAL(10,2) NOT NULL,
+    MaxOccupancy INT NOT NULL,
+    Amenities NVARCHAR(500)
+);
+
+-- Rooms table
+CREATE TABLE Rooms (
+    RoomID INT IDENTITY(1,1) PRIMARY KEY,
+    HotelID INT FOREIGN KEY REFERENCES Hotels(HotelID),
+    RoomNumber NVARCHAR(10) NOT NULL,
+    RoomTypeID INT FOREIGN KEY REFERENCES RoomTypes(RoomTypeID),
+    Floor INT,
+    Status NVARCHAR(20) DEFAULT 'Available' CHECK (Status IN ('Available', 'Occupied', 'Maintenance', 'OutOfOrder')),
+    CreatedDate DATETIME DEFAULT GETDATE(),
+    UNIQUE(HotelID, RoomNumber)
+);
+
+-- Reservations table
+CREATE TABLE Reservations (
+    ReservationID INT IDENTITY(1,1) PRIMARY KEY,
+    UserID INT FOREIGN KEY REFERENCES Users(UserID),
+    HotelID INT FOREIGN KEY REFERENCES Hotels(HotelID),
+    RoomID INT FOREIGN KEY REFERENCES Rooms(RoomID),
+    CheckInDate DATE NOT NULL,
+    CheckOutDate DATE NOT NULL,
+    NumberOfGuests INT NOT NULL,
+    TotalAmount DECIMAL(10,2),
+    Status NVARCHAR(20) DEFAULT 'Pending' CHECK (Status IN ('Pending', 'Confirmed', 'CheckedIn', 'CheckedOut', 'Cancelled')),
+    ReservationDate DATETIME DEFAULT GETDATE(),
+    SpecialRequests NVARCHAR(500),
+    CONSTRAINT CHK_Dates CHECK (CheckOutDate > CheckInDate)
+);
+
+-- Bills table
+CREATE TABLE Bills (
+    BillID INT IDENTITY(1,1) PRIMARY KEY,
+    ReservationID INT FOREIGN KEY REFERENCES Reservations(ReservationID),
+    RoomCharges DECIMAL(10,2) NOT NULL,
+    TaxAmount DECIMAL(10,2) NOT NULL,
+    ServiceCharges DECIMAL(10,2) DEFAULT 0,
+    DiscountAmount DECIMAL(10,2) DEFAULT 0,
+    TotalAmount DECIMAL(10,2) NOT NULL,
+    BillDate DATETIME DEFAULT GETDATE(),
+    PaymentStatus NVARCHAR(20) DEFAULT 'Pending' CHECK (PaymentStatus IN ('Pending', 'Paid', 'Refunded')),
+    PaymentMethod NVARCHAR(50)
+);
+
+-- CheckIn/CheckOut tracking
+CREATE TABLE CheckInOut (
+    CheckInOutID INT IDENTITY(1,1) PRIMARY KEY,
+    ReservationID INT FOREIGN KEY REFERENCES Reservations(ReservationID),
+    ActualCheckInDate DATETIME,
+    ActualCheckOutDate DATETIME,
+    CheckInBy INT FOREIGN KEY REFERENCES Users(UserID),
+    CheckOutBy INT FOREIGN KEY REFERENCES Users(UserID),
+    Notes NVARCHAR(500)
+);
+
+-- Room Maintenance table
+CREATE TABLE RoomMaintenance (
+    MaintenanceID INT IDENTITY(1,1) PRIMARY KEY,
+    RoomID INT FOREIGN KEY REFERENCES Rooms(RoomID),
+    MaintenanceType NVARCHAR(50) NOT NULL,
+    Description NVARCHAR(500),
+    StartDate DATETIME NOT NULL,
+    EndDate DATETIME,
+    Status NVARCHAR(20) DEFAULT 'Scheduled' CHECK (Status IN ('Scheduled', 'InProgress', 'Completed', 'Cancelled')),
+    AssignedTo INT FOREIGN KEY REFERENCES Users(UserID),
+    Cost DECIMAL(10,2)
+);
