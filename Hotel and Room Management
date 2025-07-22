@@ -1,0 +1,52 @@
+-- Register Hotel
+CREATE PROCEDURE SP_RegisterHotel
+    @HotelName NVARCHAR(100),
+    @Address NVARCHAR(200),
+    @City NVARCHAR(50),
+    @State NVARCHAR(50),
+    @Country NVARCHAR(50),
+    @ZipCode NVARCHAR(10) = NULL,
+    @Phone NVARCHAR(20) = NULL,
+    @Email NVARCHAR(100) = NULL,
+    @Rating DECIMAL(2,1) = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    INSERT INTO Hotels (HotelName, Address, City, State, Country, ZipCode, Phone, Email, Rating)
+    VALUES (@HotelName, @Address, @City, @State, @Country, @ZipCode, @Phone, @Email, @Rating);
+    
+    SELECT SCOPE_IDENTITY() AS HotelID, 'Hotel registered successfully' AS Message;
+END;
+GO
+
+-- Register Room
+CREATE PROCEDURE SP_RegisterRoom
+    @HotelID INT,
+    @RoomNumber NVARCHAR(10),
+    @RoomTypeID INT,
+    @Floor INT = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    -- Check if hotel exists
+    IF NOT EXISTS (SELECT 1 FROM Hotels WHERE HotelID = @HotelID AND IsActive = 1)
+    BEGIN
+        RAISERROR('Hotel not found', 16, 1);
+        RETURN;
+    END
+    
+    -- Check if room number already exists in hotel
+    IF EXISTS (SELECT 1 FROM Rooms WHERE HotelID = @HotelID AND RoomNumber = @RoomNumber)
+    BEGIN
+        RAISERROR('Room number already exists in this hotel', 16, 1);
+        RETURN;
+    END
+    
+    INSERT INTO Rooms (HotelID, RoomNumber, RoomTypeID, Floor)
+    VALUES (@HotelID, @RoomNumber, @RoomTypeID, @Floor);
+    
+    SELECT SCOPE_IDENTITY() AS RoomID, 'Room registered successfully' AS Message;
+END;
+GO
