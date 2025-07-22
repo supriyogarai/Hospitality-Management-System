@@ -1,0 +1,70 @@
+-- Generate Bill
+CREATE PROCEDURE SP_GenerateBill
+    @ReservationID INT,
+    @ServiceCharges DECIMAL(10,2) = 0,
+    @DiscountAmount DECIMAL(10,2) = 0,
+    @TaxRate DECIMAL(5,2) = 0.18 -- 18% tax
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    DECLARE @RoomCharges DECIMAL(10,2), @TaxAmount DECIMAL(10,2), @TotalAmount DECIMAL(10,2);
+    
+    -- Get room charges from reservation
+    SELECT @RoomCharges = TotalAmount
+    FROM Reservations
+    WHERE ReservationID = @ReservationID;
+    
+    IF @RoomCharges IS NULL
+    BEGIN
+        RAISERROR('Reservation not found', 16, 1);
+        RETURN;
+    END
+    
+    -- Calculate tax and total
+    SET @TaxAmount = (@RoomCharges + @ServiceCharges - @DiscountAmount) * @TaxRate;
+    SET @TotalAmount = @RoomCharges + @ServiceCharges + @TaxAmount - @DiscountAmount;
+    
+    -- Check if bill already exists
+    IF EXISTS (SELECT 1 FROM Bills WHERE ReservationID = @ReservationID)
+    BEGIN
+        -- Update existing bill
+        UPDATE Bills 
+        SET RoomCharges = @RoomCharges,
+            ServiceCharges = @ServiceCharges,
+            TaxAmount = @TaxAmount,
+            DiscountAmount = @DiscountAmount,
+            TotalAmount = @TotalAmount,
+            BillDate = GETDATE()
+        WHERE ReservationID = @ReservationID;
+        
+        SELECT 'Bill updated successfully' AS Message;
+    END
+    ELSE
+    BEGIN
+        -- Create new bill
+        INSERT INTO Bills (ReservationID, RoomCharges, TaxAmount, ServiceCharges, DiscountAmount, TotalAmount)
+        VALUES (@ReservationID, @RoomCharges, @TaxAmount, @ServiceCharges, @DiscountAmount, @TotalAmount);
+        
+        SELECT SCOPE_IDENTITY() AS BillID, 'Bill generated successfully' AS Message;
+    END
+    
+    -- Return bill details
+    SELECT 
+        b.*,
+        r.CheckInDate,
+        r.CheckOutDate,
+        r.NumberOfGuests,
+        u.FirstName + ' ' + u.LastName AS CustomerName,
+        h.HotelName,
+        rm.RoomNumber,
+        rt.TypeName AS RoomType
+    FROM Bills b
+    INNER JOIN Reservations r ON b.ReservationID = r.ReservationID
+    INNER JOIN Users u ON r.UserID = u.UserID
+    INNER JOIN Hotels h ON r.HotelID = h.HotelID
+    INNER JOIN Rooms rm ON r.RoomID = rm.RoomID
+    INNER JOIN RoomTypes rt ON rm.RoomTypeID = rt.RoomTypeID
+    WHERE b.ReservationID = @ReservationID;
+END;
+GO
