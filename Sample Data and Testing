@@ -1,0 +1,24 @@
+-- Insert sample data for testing
+INSERT INTO RoomTypes (TypeName, Description, BasePrice, MaxOccupancy, Amenities)
+VALUES 
+    ('Standard', 'Basic room with essential amenities', 100.00, 2, 'TV, WiFi, AC'),
+    ('Deluxe', 'Spacious room with premium amenities', 150.00, 3, 'TV, WiFi, AC, Mini Bar, Balcony'),
+    ('Suite', 'Luxurious suite with separate living area', 250.00, 4, 'TV, WiFi, AC, Mini Bar, Balcony, Kitchen, Living Room');
+
+-- Insert sample hotel
+INSERT INTO Hotels (HotelName, Address, City, State, Country, Phone, Email, Rating)
+VALUES ('Grand Plaza Hotel', '123 Main Street', 'New York', 'NY', 'USA', '555-0123', 'info@grandplaza.com', 4.5);
+
+-- Insert sample rooms
+DECLARE @HotelID INT = SCOPE_IDENTITY();
+INSERT INTO Rooms (HotelID, RoomNumber, RoomTypeID, Floor)
+VALUES 
+    (@HotelID, '101', 1, 1),
+    (@HotelID, '102', 1, 1),
+    (@HotelID, '201', 2, 2),
+    (@HotelID, '202', 2, 2),
+    (@HotelID, '301', 3, 3);
+
+-- Insert sample user
+INSERT INTO Users (Username, Password, Email, FirstName, LastName, Phone, Role)
+VALUES ('john_doe', HASHBYTES('SHA2_256', 'password123'), 'john@example.com', 'John', 'Doe', '555-0100', 'Customer');
