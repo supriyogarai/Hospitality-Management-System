@@ -1,0 +1,67 @@
+-- Create Reservation with Availability Check
+CREATE PROCEDURE SP_CreateReservation
+    @UserID INT,
+    @HotelID INT,
+    @RoomID INT,
+    @CheckInDate DATE,
+    @CheckOutDate DATE,
+    @NumberOfGuests INT,
+    @SpecialRequests NVARCHAR(500) = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+    BEGIN TRANSACTION;
+    
+    TRY
+        -- Check room availability
+        DECLARE @IsAvailable BIT = 0;
+        
+        SELECT @IsAvailable = 1
+        FROM Rooms r
+        WHERE r.RoomID = @RoomID
+        AND r.HotelID = @HotelID
+        AND r.Status = 'Available'
+        AND r.RoomID NOT IN (
+            SELECT DISTINCT res.RoomID
+            FROM Reservations res
+            WHERE res.Status IN ('Confirmed', 'CheckedIn')
+            AND NOT (res.CheckOutDate <= @CheckInDate OR res.CheckInDate >= @CheckOutDate)
+        );
+        
+        IF @IsAvailable = 0
+        BEGIN
+            RAISERROR('Room is not available for the selected dates', 16, 1);
+            ROLLBACK TRANSACTION;
+            RETURN;
+        END
+        
+        -- Calculate total amount
+        DECLARE @BasePrice DECIMAL(10,2), @Days INT, @TotalAmount DECIMAL(10,2);
+        
+        SELECT @BasePrice = rt.BasePrice
+        FROM Rooms r
+        INNER JOIN RoomTypes rt ON r.RoomTypeID = rt.RoomTypeID
+        WHERE r.RoomID = @RoomID;
+        
+        SET @Days = DATEDIFF(DAY, @CheckInDate, @CheckOutDate);
+        SET @TotalAmount = @BasePrice * @Days;
+        
+        -- Create reservation
+        INSERT INTO Reservations (UserID, HotelID, RoomID, CheckInDate, CheckOutDate, NumberOfGuests, TotalAmount, SpecialRequests)
+        VALUES (@UserID, @HotelID, @RoomID, @CheckInDate, @CheckOutDate, @NumberOfGuests, @TotalAmount, @SpecialRequests);
+        
+        DECLARE @ReservationID INT = SCOPE_IDENTITY();
+        
+        -- Update room status
+        UPDATE Rooms SET Status = 'Occupied' WHERE RoomID = @RoomID;
+        
+        SELECT @ReservationID AS ReservationID, 'Reservation created successfully' AS Message;
+        
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
+END;
+GO
