@@ -1,0 +1,52 @@
+-- User Registration
+CREATE PROCEDURE SP_RegisterUser
+    @Username NVARCHAR(50),
+    @Password NVARCHAR(255),
+    @Email NVARCHAR(100),
+    @FirstName NVARCHAR(50),
+    @LastName NVARCHAR(50),
+    @Phone NVARCHAR(20) = NULL,
+    @Role NVARCHAR(20) = 'Customer'
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    -- Check if username or email already exists
+    IF EXISTS (SELECT 1 FROM Users WHERE Username = @Username OR Email = @Email)
+    BEGIN
+        RAISERROR('Username or email already exists', 16, 1);
+        RETURN;
+    END
+    
+    -- Hash password (in production, use proper hashing)
+    DECLARE @HashedPassword NVARCHAR(255) = HASHBYTES('SHA2_256', @Password);
+    
+    INSERT INTO Users (Username, Password, Email, FirstName, LastName, Phone, Role)
+    VALUES (@Username, @HashedPassword, @Email, @FirstName, @LastName, @Phone, @Role);
+    
+    SELECT SCOPE_IDENTITY() AS UserID, 'User registered successfully' AS Message;
+END;
+GO
+
+-- User Login
+CREATE PROCEDURE SP_LoginUser
+    @Username NVARCHAR(50),
+    @Password NVARCHAR(255)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    DECLARE @HashedPassword NVARCHAR(255) = HASHBYTES('SHA2_256', @Password);
+    
+    SELECT UserID, Username, Email, FirstName, LastName, Role, CreatedDate
+    FROM Users 
+    WHERE Username = @Username 
+    AND Password = @HashedPassword 
+    AND IsActive = 1;
+    
+    IF @@ROWCOUNT = 0
+    BEGIN
+        RAISERROR('Invalid username or password', 16, 1);
+    END
+END;
+GO
