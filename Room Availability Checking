@@ -1,0 +1,87 @@
+-- Check Room Availability (Main Feature)
+CREATE PROCEDURE SP_CheckRoomAvailability
+    @HotelID INT,
+    @CheckInDate DATE,
+    @CheckOutDate DATE,
+    @RoomTypeID INT = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    -- Validate dates
+    IF @CheckOutDate <= @CheckInDate
+    BEGIN
+        RAISERROR('Check-out date must be after check-in date', 16, 1);
+        RETURN;
+    END
+    
+    -- Get available rooms
+    SELECT 
+        r.RoomID,
+        r.RoomNumber,
+        r.Floor,
+        rt.TypeName,
+        rt.Description,
+        rt.BasePrice,
+        rt.MaxOccupancy,
+        rt.Amenities,
+        h.HotelName
+    FROM Rooms r
+    INNER JOIN RoomTypes rt ON r.RoomTypeID = rt.RoomTypeID
+    INNER JOIN Hotels h ON r.HotelID = h.HotelID
+    WHERE r.HotelID = @HotelID
+    AND r.Status = 'Available'
+    AND (@RoomTypeID IS NULL OR r.RoomTypeID = @RoomTypeID)
+    AND r.RoomID NOT IN (
+        SELECT DISTINCT res.RoomID
+        FROM Reservations res
+        WHERE res.Status IN ('Confirmed', 'CheckedIn')
+        AND NOT (res.CheckOutDate <= @CheckInDate OR res.CheckInDate >= @CheckOutDate)
+    )
+    AND r.RoomID NOT IN (
+        SELECT DISTINCT rm.RoomID
+        FROM RoomMaintenance rm
+        WHERE rm.Status IN ('Scheduled', 'InProgress')
+        AND NOT (rm.EndDate <= @CheckInDate OR rm.StartDate >= @CheckOutDate)
+    )
+    ORDER BY r.RoomNumber;
+    
+    -- Return count of available rooms
+    SELECT COUNT(*) AS AvailableRoomsCount;
+END;
+GO
+
+-- Get Alternative Room Options
+CREATE PROCEDURE SP_GetAlternativeRooms
+    @HotelID INT,
+    @CheckInDate DATE,
+    @CheckOutDate DATE,
+    @PreferredRoomTypeID INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    -- Get alternative room types with availability
+    SELECT 
+        rt.RoomTypeID,
+        rt.TypeName,
+        rt.Description,
+        rt.BasePrice,
+        rt.MaxOccupancy,
+        COUNT(r.RoomID) as AvailableCount
+    FROM RoomTypes rt
+    INNER JOIN Rooms r ON rt.RoomTypeID = r.RoomTypeID
+    WHERE r.HotelID = @HotelID
+    AND r.Status = 'Available'
+    AND rt.RoomTypeID != @PreferredRoomTypeID
+    AND r.RoomID NOT IN (
+        SELECT DISTINCT res.RoomID
+        FROM Reservations res
+        WHERE res.Status IN ('Confirmed', 'CheckedIn')
+        AND NOT (res.CheckOutDate <= @CheckInDate OR res.CheckInDate >= @CheckOutDate)
+    )
+    GROUP BY rt.RoomTypeID, rt.TypeName, rt.Description, rt.BasePrice, rt.MaxOccupancy
+    HAVING COUNT(r.RoomID) > 0
+    ORDER BY rt.BasePrice;
+END;
+GO
